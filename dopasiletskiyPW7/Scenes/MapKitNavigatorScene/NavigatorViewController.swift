@@ -51,6 +51,18 @@ class NavigatorViewController: UIViewController {
     
     let endLocation: MyTextFildes = MyTextFildes("To")
     
+    var coordinates: [CLLocationCoordinate2D] = []
+    
+    var point: [NavigetorPoint] = []
+    
+    private func getCoordinateFrom(address: String, completion:
+                                   @escaping(_ coordinate: CLLocationCoordinate2D?, _ error: Error?)
+                                   -> () ) {
+        DispatchQueue.global(qos: .background).async {
+            CLGeocoder().geocodeAddressString(address)
+            { completion($0?.first?.location?.coordinate, $1) }
+        }
+    }
     
     private func configureUI() {
         view.addSubview(mapView)
@@ -80,13 +92,80 @@ class NavigatorViewController: UIViewController {
     
     @objc func goButtonWasPressed(){
         print("go")
+        guard
+            let first = startLocation.text,
+            let second = endLocation.text,
+            first != second
+        else {
+            return
+        }
+        print("\(first) \(second)")
+
+        let group = DispatchGroup()
+        group.enter()
+        getCoordinateFrom(address: first, completion: { [weak self] coords,_ in
+            if let coords = coords {
+                print("\(coords) ---------- Start")
+                self?.coordinates.append(coords)
+                self?.point.append(NavigetorPoint(coordinate: coords, text: "Start"))
+            }
+            group.leave()
+        })
+        group.enter()
+        getCoordinateFrom(address: second, completion: { [weak self] coords,_ in
+            if let coords = coords {
+                self?.coordinates.append(coords)
+                print("\(coords) ---------- Finish")
+                self?.point.append(NavigetorPoint(coordinate: coords, text: "Finish"))
+            }
+            group.leave()
+        })
+        group.notify(queue: .main) {
+            DispatchQueue.main.async { [weak self] in
+                self?.buildPath()
+            }
+        }
     }
+    
+    func buildPath(){
+        for i in point{
+            print(i.coordinate)
+            mapView.addAnnotation(i)
+        }
+        
+        let startpoint = MKPlacemark(coordinate: point[0].coordinate)
+        let endpoint = MKPlacemark(coordinate: point[1].coordinate)
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: startpoint)
+        request.destination = MKMapItem(placemark: endpoint)
+        request.transportType = .automobile
+        
+        let direction = MKDirections(request: request)
+        direction.calculate { (respons, error) in
+            guard let respons = respons else {return}
+            for route in respons.routes{
+                self.mapView.addOverlay(route.polyline)
+            }
+            
+        }
+    }
+    
     
     @objc func clearButtonWasPressed(){
         startLocation.text = nil
         endLocation.text = nil
         buttonGo.isActive(false)
         buttonClear.isActive(false)
+    }
+}
+
+extension NavigatorViewController: MKMapViewDelegate{
+    func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+        let render = MKPolylineRenderer(overlay: overlay)
+        render.strokeColor = .blue
+        render.lineWidth = 10
+        print("addd")
+        return render
     }
 }
 
