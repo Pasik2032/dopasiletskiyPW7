@@ -13,6 +13,17 @@ class BigButton: UIButton {
         setTitle(text, for: .normal)
         self.backgroundColor = background
         self.layer.cornerRadius = 10
+        isActive(false)
+    }
+    
+    func isActive(_ status: Bool){
+        if status{
+            setTitleColor(.white, for: .normal)
+            isEnabled = true
+        }else{
+            setTitleColor(.gray, for: .disabled)
+            isEnabled = false
+        }
     }
     
     required init?(coder: NSCoder) {
