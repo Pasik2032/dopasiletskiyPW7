@@ -15,9 +15,14 @@ protocol NavigatorViewProtocol: class {
     func configureMap(point: YMKPoint, zoom: Int)
     func configureButtons()
     func configureTextFildes()
+    func configureSegment()
+    func configureText()
     func onRoutesReceived(_ routes: [YMKDrivingRoute])
     func onRoutesError(_ error: Error)
     func buildPath(requestPoints: [YMKRequestPoint], responseHandler: @escaping ([YMKDrivingRoute]?, Error?) -> Void)
+    func buildRoutePedestrian(requestPoints: [YMKRequestPoint], type: Int, responseHandlerForPedestrian: @escaping ([YMKMasstransitRoute]?, Error?) -> Void)
+    func onRoutesForPedestrianReceived(_ routes: [YMKMasstransitRoute])
+    
 }
 
 
@@ -33,9 +38,25 @@ class NavigatorViewController: UIViewController {
         presenter.configureView()
     }
     
+    var length = 0.0
+    
     private let yandexMap: YMKMapView = {
         let map = YMKMapView()
         return map
+    }()
+    
+    private let text: UITextView = {
+        let control = UITextView()
+        control.backgroundColor = .white
+        control.text = ""
+        control.translatesAutoresizingMaskIntoConstraints = false
+        return control
+    }()
+    
+    private let segment: UISegmentedControl = {
+        let control = UISegmentedControl(items: ["машина", "пешком", "велосипед", "общественный транспорт"])
+        control.selectedSegmentIndex = 0;
+        return control
     }()
     
      let buttonGo: BigButton = {
@@ -56,11 +77,12 @@ class NavigatorViewController: UIViewController {
     
     let endLocation: MyTextFildes = MyTextFildes("To")
     
+    let textStack = UIStackView()
+    
     var coordinates: [CLLocationCoordinate2D] = []
     
     var point: [NavigetorPoint] = []
     
-
     
     @objc func goButtonWasPressed(){
 
@@ -71,10 +93,15 @@ class NavigatorViewController: UIViewController {
         else {
             return
         }
-        presenter.goButtonClicked(from: first, to: second)
+        
+        presenter.goButtonClicked(from: first, to: second, type: segment.selectedSegmentIndex)
     }
     
     var drivingSession: YMKDrivingSession?
+    
+    var drivingSessionForPedestrian : YMKMasstransitSession?
+    
+    var drivingSessionForBicycle : YMKBicycleSession?
     
     func buildPath(requestPoints: [YMKRequestPoint], responseHandler: @escaping ([YMKDrivingRoute]?, Error?) -> Void){
 
@@ -102,6 +129,9 @@ class NavigatorViewController: UIViewController {
 
 // MARK: ConfigureUI
 extension NavigatorViewController: NavigatorViewProtocol{
+   
+    
+    
     
     func configureMap(point: YMKPoint, zoom: Int) {
         view.addSubview(yandexMap)
@@ -125,8 +155,16 @@ extension NavigatorViewController: NavigatorViewProtocol{
         stack.heightAnchor.constraint(equalToConstant: 50).isActive = true
     }
     
+    func configureText(){
+        yandexMap.addSubview(text)
+        text.leftAnchor.constraint(equalTo: view.leftAnchor, constant: 10).isActive = true
+        text.topAnchor.constraint(equalTo: segment.bottomAnchor, constant: 10).isActive = true
+        text.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        text.widthAnchor.constraint(equalToConstant: 50).isActive = true
+        
+    }
+    
     func configureTextFildes() {
-        let textStack = UIStackView()
         textStack.axis = .vertical
         yandexMap.addSubview(textStack)
         textStack.spacing = 10
@@ -137,13 +175,36 @@ extension NavigatorViewController: NavigatorViewProtocol{
             textStack.addArrangedSubview(textField)
         }
     }
+    func configureSegment() {
+        yandexMap.addSubview(segment)
+        segment.translatesAutoresizingMaskIntoConstraints = false
+        segment.topAnchor.constraint(equalTo: textStack.bottomAnchor, constant: 10).isActive = true
+        segment.leftAnchor.constraint(equalTo: view.leftAnchor, constant: 10).isActive = true
+        segment.rightAnchor.constraint(equalTo: view.rightAnchor, constant: -10).isActive = true
+        segment.heightAnchor.constraint(equalToConstant: 40).isActive = true
+    }
     
     func onRoutesReceived(_ routes: [YMKDrivingRoute]) {
         let mapObjects = yandexMap.mapWindow.map.mapObjects
-        for route in routes {
-            mapObjects.addPolyline(with: route.geometry)
-        }
+        text.text = String(Double(routes[0].geometry.points.count) * 0.0415)
+        mapObjects.addPolyline(with: routes[0].geometry)
     }
+
+    
+    func onRoutesForBicycleReceived(_ routes: [YMKBicycleRoute]) {
+            let mapObjects = yandexMap.mapWindow.map.mapObjects
+
+        text.text = String(Double(routes[0].geometry.points.count) * 0.0415)
+                mapObjects.addPolyline(with: routes[0].geometry)
+           
+        }
+    
+    func onRoutesForPedestrianReceived(_ routes: [YMKMasstransitRoute]) {
+            let mapObjects = yandexMap.mapWindow.map.mapObjects
+                text.text = String(Double(routes[0].geometry.points.count) * 0.0415)
+                mapObjects.addPolyline(with: routes[0].geometry)
+           
+        }
     
     func onRoutesError(_ error: Error) {
         let routingError = (error as NSError).userInfo[YRTUnderlyingErrorKey] as! YRTError
@@ -158,6 +219,45 @@ extension NavigatorViewController: NavigatorViewProtocol{
         alert.addAction(UIAlertAction(title: "OK", style: .default, handler: nil))
         
         present(alert, animated: true, completion: nil)
+    }
+    
+    func buildRoutePedestrian(requestPoints: [YMKRequestPoint], type: Int, responseHandlerForPedestrian: @escaping ([YMKMasstransitRoute]?, Error?) -> Void) {
+        
+//        var pedestrianRouter : YMKMasstransitSessionRouteHandler
+        let pedestrianRouter = YMKTransport.sharedInstance().createPedestrianRouter()
+        let bicycleRouter = YMKTransport.sharedInstance().createBicycleRouter()
+        let masstransitRouter = YMKTransport.sharedInstance().createMasstransitRouter()
+
+        switch type{
+        case 1:
+            drivingSessionForPedestrian = pedestrianRouter.requestRoutes(
+                with: requestPoints,
+                timeOptions: YMKTimeOptions(),
+                routeHandler: responseHandlerForPedestrian
+            )
+        case 2:
+            drivingSessionForBicycle = bicycleRouter.requestRoutes(
+                with: requestPoints,
+                routeListener: { routesResponse, error in
+                    if let routes = routesResponse {
+                        self.onRoutesForBicycleReceived(routes)
+                    } else {
+                        self.onRoutesError(error!)
+                    }
+                })
+            
+        case 3:
+            drivingSessionForPedestrian = masstransitRouter.requestRoutes(
+                with: requestPoints,
+                masstransitOptions: YMKMasstransitOptions.init(),
+                routeHandler: responseHandlerForPedestrian)
+        default:
+            drivingSessionForPedestrian = pedestrianRouter.requestRoutes(
+                with: requestPoints,
+                timeOptions: YMKTimeOptions(),
+                routeHandler: responseHandlerForPedestrian
+            )
+        }
     }
     
 }

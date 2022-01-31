@@ -12,7 +12,7 @@ extension NavigatorViewController: UITextFieldDelegate {
         let startText = startLocation.text?.replacingOccurrences(of: " ", with: "")
         let endText = endLocation.text?.replacingOccurrences(of: " ", with: "")
         if (startText != nil && startText != "") && (endText != nil && endText != "" ) && textField == endLocation {
-            goButtonWasPressed()
+            
         }
         textField.resignFirstResponder()
         return true

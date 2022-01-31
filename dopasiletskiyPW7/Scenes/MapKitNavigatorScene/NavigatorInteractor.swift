@@ -10,12 +10,12 @@ import YandexMapsMobile
 import CoreLocation
 
 protocol NavigatorInteractorProtocol: class {
-    func buildRoute(from: String, to: String)
+    func buildRoute(from: String, to: String, type: Int)
 }
 
 class NavigatorInteractor: NavigatorInteractorProtocol{
 
-    func buildRoute(from: String, to: String) {
+    func buildRoute(from: String, to: String, type: Int) {
         var requestPoints : [YMKRequestPoint] = []
         let group = DispatchGroup()
         group.enter()
@@ -44,7 +44,7 @@ class NavigatorInteractor: NavigatorInteractorProtocol{
         group.notify(queue: .main) {
             DispatchQueue.main.async { [weak self] in
                 let midPoint = YMKPoint(latitude: (startpoint!.latitude + endpoint!.latitude)/2, longitude: (startpoint!.longitude + endpoint!.longitude)/2)
-                self?.presenter.rout(requestPoints: requestPoints, point: midPoint)
+                self?.presenter.rout(requestPoints: requestPoints, point: midPoint, type: type)
             }
         }
             
